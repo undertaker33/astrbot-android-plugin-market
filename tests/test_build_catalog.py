@@ -4,6 +4,11 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import build_catalog  # type: ignore  # noqa: E402
 
 
 class BuildCatalogTest(unittest.TestCase):
@@ -73,6 +78,44 @@ class BuildCatalogTest(unittest.TestCase):
             self.assertEqual(built["updatedAt"], 1776000000000)
             self.assertEqual(len(built["plugins"]), 1)
             self.assertEqual(built["plugins"][0]["pluginId"], "cc.astrbot.android.plugin.demo")
+
+    def test_fills_missing_published_at_from_github_release(self) -> None:
+        entries = [
+            {
+                "pluginId": "cc.astrbot.android.plugin.demo",
+                "title": "Demo Plugin",
+                "author": "tester",
+                "description": "A demo plugin entry.",
+                "entrySummary": "Demo summary.",
+                "repoUrl": "https://github.com/example/demo-plugin",
+                "versions": [
+                    {
+                        "version": "1.0.0",
+                        "packageUrl": "https://github.com/example/demo-plugin/releases/download/v1/demo.zip",
+                        "protocolVersion": 1,
+                        "minHostVersion": "0.4.0",
+                        "maxHostVersion": "",
+                        "permissions": [],
+                        "changelog": "Initial release."
+                    }
+                ],
+            }
+        ]
+
+        with mock.patch.object(
+            build_catalog,
+            "fetch_release_published_at_millis",
+            return_value=1776000000000,
+        ) as fetch_mock:
+            hydrated = build_catalog.hydrate_plugin_entries(entries)
+
+        self.assertEqual(
+            hydrated[0]["versions"][0]["publishedAt"],
+            1776000000000,
+        )
+        fetch_mock.assert_called_once_with(
+            "https://github.com/example/demo-plugin/releases/download/v1/demo.zip"
+        )
 
 
 if __name__ == "__main__":

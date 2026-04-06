@@ -54,6 +54,11 @@ Each version must provide:
 - `packageUrl`
 - `minHostVersion`
 
+`publishedAt` is optional.
+
+- If you provide it, keep it as a Unix millisecond timestamp.
+- If you omit it and `packageUrl` is a standard GitHub Release download URL, the catalog builder will fill it automatically from the release's `published_at`.
+
 ## URL Rules
 
 - `repoUrl` should point to the plugin repository homepage.

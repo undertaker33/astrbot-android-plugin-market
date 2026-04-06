@@ -46,6 +46,8 @@ Instead:
 
 The root `catalog.json` is a generated file.
 
+Version-level `publishedAt` may be omitted in `plugins/<pluginId>.json` when the package URL is a standard GitHub Release download URL. The catalog builder will derive it automatically from the release metadata.
+
 ## Current Files
 
 - `plugins/`: one file per plugin entry
