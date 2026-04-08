@@ -2,32 +2,32 @@
   "sourceId": "undertaker33.astrbot.android.plugin.market",
   "title": "AstrBot Android Plugin Market",
   "catalogUrl": "https://raw.githubusercontent.com/undertaker33/astrbot-android-plugin-market/main/catalog.json",
-  "updatedAt": 1775459798000,
+  "updatedAt": 1775622050000,
   "plugins": [
     {
       "pluginId": "cc.astrbot.android.plugin.meme_manager.native",
-      "title": "表情管理器 Android Native",
-      "author": "93445",
+      "title": "自动表情包发送",
+      "author": "Astrbot-Android",
       "description": "AstrBot Android Native QuickJS 外部插件：迁移桌面端表情包回复链路、/表情管理 指令和内置 memes 资源。",
       "entrySummary": "支持聊天触发表情图回复，并保留 /表情管理 命令入口与资源统计能力。",
-      "repoUrl": "https://github.com/undertaker33/astrbot_android_plugin_memes",
+      "repoUrl": "https://github.com/undertaker33/astrbot_android_plugin_meme_manager",
       "scenarios": [
         "表情包回复",
         "表情管理"
       ],
       "versions": [
         {
-          "version": "0.1.0",
-          "packageUrl": "https://github.com/undertaker33/astrbot_android_plugin_memes/releases/download/v1/astrbot_android_native_meme_manager.zip",
-          "publishedAt": 1775459798000,
+          "version": "0.4.0",
+          "packageUrl": "https://github.com/undertaker33/astrbot_android_plugin_meme_manager/releases/download/v0.4.0/v0.4.0.zip",
           "protocolVersion": 1,
           "minHostVersion": "0.4.0",
           "maxHostVersion": "",
           "permissions": [],
-          "changelog": "Initial public Android Native market release."
+          "changelog": "Initial public Android Native market release.",
+          "publishedAt": 1775622050000
         }
       ],
-      "repositoryUrl": "https://github.com/undertaker33/astrbot_android_plugin_memes"
+      "repositoryUrl": "https://github.com/undertaker33/astrbot_android_plugin_meme_manager"
     }
   ]
 }
