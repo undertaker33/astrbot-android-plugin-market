@@ -2,6 +2,32 @@
   "sourceId": "undertaker33.astrbot.android.plugin.market",
   "title": "AstrBot Android Plugin Market",
   "catalogUrl": "https://raw.githubusercontent.com/undertaker33/astrbot-android-plugin-market/main/catalog.json",
-  "updatedAt": 0,
-  "plugins": []
+  "updatedAt": 1776230953000,
+  "plugins": [
+    {
+      "pluginId": "io.github.astrbot.android.meme_manager",
+      "title": "Android Meme Manager",
+      "author": "OpenAI Codex",
+      "description": "Local meme manager and auto-send plugin for AstrBot Android plugin v2.",
+      "entrySummary": "Bundles local meme assets, builds a category index, decorates replies with meme images, and exposes meme management commands.",
+      "repoUrl": "https://github.com/undertaker33/Astrbot_Android_plugin_memes",
+      "scenarios": [
+        "Meme replies",
+        "Meme management"
+      ],
+      "versions": [
+        {
+          "version": "0.2.3",
+          "packageUrl": "https://github.com/undertaker33/Astrbot_Android_plugin_memes/releases/download/v0.2.3/Astrbot_Android_plugin_memes-v0.2.3.zip",
+          "protocolVersion": 2,
+          "minHostVersion": "0.3.0",
+          "maxHostVersion": "",
+          "permissions": [],
+          "changelog": "Initial Android Native plugin market release.",
+          "publishedAt": 1776230953000
+        }
+      ],
+      "repositoryUrl": "https://github.com/undertaker33/Astrbot_Android_plugin_memes"
+    }
+  ]
 }
