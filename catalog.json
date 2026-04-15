@@ -2,14 +2,14 @@
   "sourceId": "undertaker33.astrbot.android.plugin.market",
   "title": "AstrBot Android Plugin Market",
   "catalogUrl": "https://raw.githubusercontent.com/undertaker33/astrbot-android-plugin-market/main/catalog.json",
-  "updatedAt": 1776230953000,
+  "updatedAt": 1776247577000,
   "plugins": [
     {
       "pluginId": "io.github.astrbot.android.meme_manager",
-      "title": "Android Meme Manager",
-      "author": "OpenAI Codex",
-      "description": "Local meme manager and auto-send plugin for AstrBot Android plugin v2.",
-      "entrySummary": "Bundles local meme assets, builds a category index, decorates replies with meme images, and exposes meme management commands.",
+      "title": "表情包发送器",
+      "author": "untarz",
+      "description": "基于插件v2协议开发的表情包发送器，支持本地表情包资源的打包、分类索引构建、回复装饰以及/表情管理命令的暴露。",
+      "entrySummary": "让bot能发送表情包，支持流式兼容和发送行为自定义",
       "repoUrl": "https://github.com/undertaker33/Astrbot_Android_plugin_memes",
       "scenarios": [
         "Meme replies",
@@ -17,14 +17,14 @@
       ],
       "versions": [
         {
-          "version": "0.2.3",
-          "packageUrl": "https://github.com/undertaker33/Astrbot_Android_plugin_memes/releases/download/v0.2.3/Astrbot_Android_plugin_memes-v0.2.3.zip",
+          "version": "0.2.5",
+          "packageUrl": "https://github.com/undertaker33/Astrbot_Android_plugin_memes/releases/download/v0.2.5/v0.2.5.zip",
           "protocolVersion": 2,
-          "minHostVersion": "0.3.0",
+          "minHostVersion": "0.5.5",
           "maxHostVersion": "",
           "permissions": [],
           "changelog": "Initial Android Native plugin market release.",
-          "publishedAt": 1776230953000
+          "publishedAt": 1776247577000
         }
       ],
       "repositoryUrl": "https://github.com/undertaker33/Astrbot_Android_plugin_memes"
