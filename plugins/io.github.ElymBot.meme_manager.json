@@ -1,10 +1,10 @@
 {
-  "pluginId": "io.github.astrbot.android.meme_manager",
+  "pluginId": "io.github.ElymBot.android.meme_manager",
   "title": "表情包发送器",
   "author": "untarz",
   "description": "基于插件v2协议开发的表情包发送器，支持本地表情包资源的打包、分类索引构建、回复装饰以及/表情管理命令的暴露。",
   "entrySummary": "让bot能发送表情包，支持流式兼容和发送行为自定义",
-  "repoUrl": "https://github.com/undertaker33/Astrbot_Android_plugin_memes",
+  "repoUrl": "https://github.com/undertaker33/ElymBot_plugin_memes",
   "scenarios": [
     "Meme replies",
     "Meme management"
@@ -12,12 +12,13 @@
   "versions": [
     {
       "version": "0.2.5",
-      "packageUrl": "https://github.com/undertaker33/Astrbot_Android_plugin_memes/releases/download/v0.2.5/v0.2.5.zip",
+      "packageUrl": "https://github.com/undertaker33/ElymBot_plugin_memes/releases/download/v0.2.5/0.2.5.zip",
       "protocolVersion": 2,
       "minHostVersion": "0.5.5",
       "maxHostVersion": "",
       "permissions": [],
-      "changelog": "Initial Android Native plugin market release."
+      "changelog": "Initial Android Native plugin market release.",
+      "publishedAt": 1776230953000
     }
   ]
 }

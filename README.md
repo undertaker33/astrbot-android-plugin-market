@@ -1,4 +1,4 @@
-- # AstrBot-Android插件上架说明
+# ElymBot 插件上架说明
 
   该文档负责说明如何上架和安装插件
 
@@ -7,8 +7,6 @@
   - 本地zip
   - 直链包
   - 仓库安装
-
-  
 
   ## 1. ZIP打包
 
@@ -145,7 +143,7 @@
   然后在 GitHub 页面创建 PR，目标仓库选择：
 
   ```text
-  undertaker33/astrbot-android-plugin-market
+  undertaker33/ElymBot-plugin-market
   ```
 
   目标分支选择：

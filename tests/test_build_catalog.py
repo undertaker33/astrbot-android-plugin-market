@@ -20,9 +20,9 @@ class BuildCatalogTest(unittest.TestCase):
             (repo_root / "catalog.metadata.json").write_text(
                 json.dumps(
                     {
-                        "sourceId": "undertaker33.astrbot.android.plugin.market",
-                        "title": "AstrBot Android Plugin Market",
-                        "catalogUrl": "https://raw.githubusercontent.com/undertaker33/astrbot-android-plugin-market/main/catalog.json",
+                        "sourceId": "undertaker33.elymbot.plugin.market",
+                        "title": "ElymBot Plugin Market",
+                        "catalogUrl": "https://raw.githubusercontent.com/undertaker33/ElymBot-plugin-market/main/catalog.json",
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -73,7 +73,7 @@ class BuildCatalogTest(unittest.TestCase):
             built = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertEqual(
                 built["catalogUrl"],
-                "https://raw.githubusercontent.com/undertaker33/astrbot-android-plugin-market/main/catalog.json",
+                "https://raw.githubusercontent.com/undertaker33/ElymBot-plugin-market/main/catalog.json",
             )
             self.assertEqual(built["updatedAt"], 1776000000000)
             self.assertEqual(len(built["plugins"]), 1)

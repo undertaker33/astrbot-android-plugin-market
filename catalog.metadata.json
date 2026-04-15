@@ -1,5 +1,5 @@
 {
-  "sourceId": "undertaker33.astrbot.android.plugin.market",
-  "title": "AstrBot Android Plugin Market",
-  "catalogUrl": "https://raw.githubusercontent.com/undertaker33/astrbot-android-plugin-market/main/catalog.json"
+  "sourceId": "undertaker33.elymbot.plugin.market",
+  "title": "ElymBot Plugin Market",
+  "catalogUrl": "https://raw.githubusercontent.com/undertaker33/ElymBot-plugin-market/main/catalog.json"
 }

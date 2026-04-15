@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AstrBot Android Plugin Market Catalog",
+  "title": "ElymBot Plugin Market Catalog",
   "type": "object",
   "required": [
     "sourceId",

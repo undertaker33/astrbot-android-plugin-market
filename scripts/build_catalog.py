@@ -10,7 +10,7 @@ import os
 
 DEFAULT_CATALOG_URL = (
     "https://raw.githubusercontent.com/undertaker33/"
-    "astrbot-android-plugin-market/main/catalog.json"
+    "ElymBot-plugin-market/main/catalog.json"
 )
 DEFAULT_PROTOCOL_VERSION = 1
 
@@ -100,7 +100,7 @@ def fetch_release_published_at_millis(package_url: str) -> int:
     api_url = f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}"
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "astrbot-android-plugin-market-builder",
+        "User-Agent": "elymbot-plugin-market-builder",
     }
     token = os.environ.get("GITHUB_TOKEN")
     if token:

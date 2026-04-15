@@ -1,6 +1,6 @@
 # Contributing
 
-This repository accepts catalog entry updates for AstrBot Android Native plugins.
+This repository accepts catalog entry updates for ElymBot plugins.
 
 ## Rules
 

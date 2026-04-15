@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AstrBot Android Plugin Market Entry",
+  "title": "ElymBot Plugin Market Entry",
   "type": "object",
   "required": [
     "pluginId",
