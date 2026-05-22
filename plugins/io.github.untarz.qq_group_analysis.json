@@ -47,7 +47,7 @@
           "required": true
         }
       ],
-      "changelog": "Initial release. Add manual current-conversation group analysis commands."
+      "changelog": "Initial release. Add manual current-conversation group analysis commands and history diagnostics."
     }
   ]
 }
