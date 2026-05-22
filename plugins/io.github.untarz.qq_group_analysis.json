@@ -33,6 +33,13 @@
           "required": true
         },
         {
+          "permissionId": "send_message",
+          "title": "Send current conversation messages",
+          "description": "Allows the plugin to send analysis results to the current conversation.",
+          "riskLevel": "MEDIUM",
+          "required": true
+        },
+        {
           "permissionId": "call_model",
           "title": "Call LLM",
           "description": "Allows the plugin to call the configured LLM to generate analysis reports.",
