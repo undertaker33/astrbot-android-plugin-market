@@ -1,127 +1,101 @@
 # ElymBot Plugin v2 — Agent Development Guide
 
-> **Audience**: AI coding agents (Copilot, Cursor, Claude, etc.)
-> **Goal**: Enable an agent to develop a fully functional ElymBot plugin from scratch,
-> without access to the host application source code.
-> **Host version**: ≥ 0.4.0 · **Protocol**: v2 · **Runtime**: QuickJS (ES Module)
+Audience: AI coding agents that need to create an ElymBot Android Native external plugin without reading host app source code.
 
----
+Target contract:
 
-## TABLE OF CONTENTS
+- `protocolVersion: 2`
+- `runtime.kind: "js_quickjs"`
+- `runtime.apiVersion: 1`
+- bootstrap entry: `runtime/bootstrap.js`
+- host version: `0.4.0+`
 
-1. [ARCHITECTURE OVERVIEW](#1-architecture-overview)
-2. [FILE STRUCTURE (MANDATORY)](#2-file-structure)
-3. [manifest.json SPEC](#3-manifestjson)
-4. [android-plugin.json SPEC](#4-android-pluginjson)
-5. [BOOTSTRAP ENTRY POINT](#5-bootstrap-entry-point)
-6. [hostApi REFERENCE](#6-hostapi-reference)
-7. [HANDLER & HOOK REGISTRATION](#7-handler--hook-registration)
-8. [EVENT OBJECT SHAPES](#8-event-object-shapes)
-9. [LLM PIPELINE HOOKS](#9-llm-pipeline-hooks)
-10. [CONFIGURATION SYSTEM](#10-configuration-system)
-11. [ATTACHMENTS & ASSETS](#11-attachments--assets)
-12. [COMPLETE EXAMPLES](#12-complete-examples)
-13. [COMMON PITFALLS](#13-common-pitfalls)
-14. [CHECKLIST BEFORE DELIVERY](#14-checklist)
+## 1. Non-Negotiable Runtime Rules
 
----
+Plugins run in a QuickJS ES module sandbox.
 
-## 1. ARCHITECTURE OVERVIEW
+Do:
 
-```
-┌─────────────────────────────────────────────────┐
-│  ElymBot Host App (Android / Kotlin)            │
-│                                                 │
-│  ┌──────────────┐   ┌────────────────────────┐  │
-│  │ Plugin Loader │──▶│ QuickJS Engine          │  │
-│  │              │   │  (ES Module sandbox)    │  │
-│  │  reads:      │   │  ┌──────────────────┐   │  │
-│  │  manifest    │   │  │ bootstrap.js      │   │  │
-│  │  android-    │   │  │  export default   │   │  │
-│  │  plugin.json │   │  │  async function   │   │  │
-│  │  _conf_      │   │  │  bootstrap(       │   │  │
-│  │  schema.json │   │  │    hostApi) {...}  │   │  │
-│  │  settings-   │   │  └──────────────────┘   │  │
-│  │  schema.json │   └────────────────────────┘  │
-│  └──────────────┘                               │
-│                                                 │
-│  Platforms: QQ (OneBot), App-internal chat       │
-└─────────────────────────────────────────────────┘
-```
+- Export `default async function bootstrap(hostApi)`.
+- Register all handlers, hooks, tools, schedules, and agents during `bootstrap`.
+- Use only documented `hostApi` methods and event objects.
+- Keep imports inside the `runtime/` tree.
+- Package a complete plugin directory with `manifest.json`, `android-plugin.json`, and `runtime/bootstrap.js`.
 
-**Key facts:**
-- Plugins run inside a QuickJS sandbox — **no Node.js APIs** (no `fs`, `path`, `require`, `process`).
-- Only ES module imports from files **within** the `runtime/` directory tree are allowed.
-- All interaction with the host goes through the `hostApi` object passed to `bootstrap()`.
-- The plugin is **event-driven**: you register handlers/hooks, then the host calls them.
-- Plugin code is **synchronous** within a single QuickJS thread. Hooks run sequentially by priority.
+Do not:
 
----
+- Use Node.js APIs: `fs`, `path`, `require`, `process`, `Buffer`, npm packages.
+- Modify host application code.
+- Use old API names such as `activate(hostApi)`, `registerCommand(...)`, `onDecoratingResult(...)`, or `afterMessageSent(...)`.
+- Directly access host databases, Android services, platform adapters, or local sockets.
+- Invent aliases from other bot frameworks.
 
-## 2. FILE STRUCTURE
+## 2. Required File Structure
 
-```
-my-plugin/                     ← plugin root directory
-├── manifest.json              ← REQUIRED: identity & metadata
-├── android-plugin.json        ← REQUIRED: runtime & config contract
-├── _conf_schema.json          ← OPTIONAL: config field definitions
+```text
+my-plugin/
+├── manifest.json
+├── android-plugin.json
+├── _conf_schema.json
 ├── runtime/
-│   ├── bootstrap.js           ← REQUIRED: entry point
-│   └── *.js                   ← OPTIONAL: additional ES modules
+│   ├── bootstrap.js
+│   └── utils.js
 ├── schemas/
-│   └── settings-schema.json   ← OPTIONAL: settings UI definition
-└── assets/                    ← OPTIONAL: images, audio, etc.
-    └── ...
+│   └── settings-schema.json
+└── assets/
 ```
 
-**Rules:**
-- `manifest.json` and `android-plugin.json` MUST be at the plugin root.
-- `runtime/bootstrap.js` is the default entry file (configurable in android-plugin.json).
-- All JS files use ES module syntax (`import`/`export`), NOT CommonJS.
-- Asset paths in code are relative to the plugin root (NOT relative to `runtime/`).
+Only these are mandatory:
 
----
+- `manifest.json`
+- `android-plugin.json`
+- `runtime/bootstrap.js`
 
 ## 3. manifest.json
 
-Every field documented. Copy-paste and fill in your values.
-
 ```json
 {
-  "pluginId": "com.yourname.plugin-name",
+  "pluginId": "com.example.myplugin",
   "version": "1.0.0",
   "protocolVersion": 2,
   "author": "Your Name",
-  "title": "Plugin Display Name",
-  "description": "One-line description of the plugin",
+  "title": "My Plugin",
+  "description": "Short description",
   "permissions": [],
   "minHostVersion": "0.4.0",
   "maxHostVersion": "",
-  "sourceType": "GIT",
-  "sourceUrl": "https://github.com/yourname/plugin-repo.git",
-  "entrySummary": "Brief summary of capabilities",
+  "sourceType": "LOCAL_FILE",
+  "entrySummary": "What this plugin does",
   "riskLevel": "LOW"
 }
 ```
 
-| Field | Type | Req | Constraint |
-|-------|------|-----|------------|
-| `pluginId` | string | ✅ | Globally unique. Use reverse-domain: `com.author.name` |
-| `version` | string | ✅ | Semantic versioning `X.Y.Z` |
-| `protocolVersion` | number | ✅ | **Must be `2`**. v1 is deprecated. |
-| `author` | string | ✅ | Author display name |
-| `title` | string | ✅ | UI display name |
-| `description` | string | ✅ | Short description |
-| `permissions` | string[] | ✅ | Currently unused, set `[]` |
-| `minHostVersion` | string | ✅ | Minimum host version, e.g. `"0.4.0"` |
-| `maxHostVersion` | string | ❌ | Empty string = no upper bound |
-| `sourceType` | string | ❌ | `"GIT"` or `"LOCAL_FILE"` |
-| `sourceUrl` | string | ❌ | Git repo URL when sourceType is GIT |
-| `entrySummary` | string | ❌ | Capability summary |
-| `riskLevel` | string | ❌ | `"LOW"` / `"MEDIUM"` / `"HIGH"` |
+`permissions` must exist. Leave it empty only when the plugin uses basic handler registration, logging, settings, and event replies. Add permission objects for controlled Host API access:
 
+```json
+{
+  "permissionId": "network_request",
+  "title": "Network requests",
+  "description": "Allows the plugin to access allowed domains through host-proxied network requests.",
+  "riskLevel": "MEDIUM",
+  "required": true
+}
+```
 
----
+Known permission IDs:
+
+| permissionId | Enables |
+|--------------|---------|
+| `network_request` | `hostApi.fetch`, `hostApi.network.request` |
+| `provider_read` | `hostApi.providers.list`, `hostApi.providers.models` |
+| `send_message` | `hostApi.message.send` for plain text / attachments |
+| `rich_message_send` | `hostApi.message.send({ chain })` |
+| `conversation_read` | `hostApi.conversation.history` |
+| `call_model` | `hostApi.callLlm`, `hostApi.llm.generate` |
+| `context_compress` | `hostApi.context.compress` |
+| `schedule_manage` | `hostApi.registerScheduledHandler` |
+| `message_stream` | `hostApi.message.openStream` and stream operations |
+| `agent_run` | `hostApi.registerAgent`, `hostApi.agent.run` |
 
 ## 4. android-plugin.json
 
@@ -136,469 +110,467 @@ Every field documented. Copy-paste and fill in your values.
   "config": {
     "staticSchema": "_conf_schema.json",
     "settingsSchema": "schemas/settings-schema.json"
+  },
+  "network": {
+    "allowedDomains": ["api.example.com"]
   }
 }
 ```
 
-| Field | Value | Note |
-|-------|-------|------|
-| `protocolVersion` | `2` | Fixed |
-| `runtime.kind` | `"js_quickjs"` | Fixed. Only QuickJS is supported. |
-| `runtime.bootstrap` | `"runtime/bootstrap.js"` | Relative to plugin root |
-| `runtime.apiVersion` | `1` | Current API version |
-| `config.staticSchema` | `"_conf_schema.json"` | Empty string `""` if no config |
-| `config.settingsSchema` | `"schemas/settings-schema.json"` | Empty string `""` if no settings UI |
+Rules:
 
----
+- `runtime.bootstrap` must be a relative path under `runtime/`.
+- Use forward slashes.
+- `network.allowedDomains` must contain bare domains only, no scheme, path, or port.
+- Network access also requires the `network_request` permission.
 
-## 5. BOOTSTRAP ENTRY POINT
-
-The entry file **MUST** export a default async function named `bootstrap`:
+## 5. Bootstrap Template
 
 ```javascript
 export default async function bootstrap(hostApi) {
-  // All registration happens here.
-  // hostApi is the ONLY interface to the host.
-  
-  hostApi.registerCommandHandler({ ... });
-  hostApi.registerLlmHook({ ... });
-  // etc.
+  hostApi.log("INFO", "[my-plugin] loaded");
+
+  hostApi.registerCommandHandler({
+    key: "my-plugin.ping",
+    command: "ping",
+    aliases: [],
+    groupPath: [],
+    priority: 0,
+    metadata: {},
+    handler(event) {
+      event.replyText("pong");
+    },
+  });
 }
 ```
 
-**Hard requirements:**
-1. `export default` — must be a default export
-2. `async function` — must be async
-3. Function name must be `bootstrap`
-4. Single parameter: `hostApi`
-5. All handler registration must happen during this call (not deferred/async-later)
+Use ES modules only:
 
-**Module imports** — only from sibling files:
 ```javascript
-import { myHelper } from "./utils.js";  // OK — relative to runtime/
-import { foo } from "./sub/bar.js";     // OK — subdirectory
-// import fs from "fs";                 // FORBIDDEN — no Node.js
-// const x = require("./x");            // FORBIDDEN — no CommonJS
+import { helper } from "./utils.js";
 ```
 
----
+Never use `require`.
 
-## 6. hostApi REFERENCE
+## 6. hostApi Reference
 
-All methods available on the `hostApi` object:
-
-### Registration Methods
+### Registration
 
 | Method | Purpose |
 |--------|---------|
-| `registerCommandHandler(descriptor)` | Register a slash command (e.g., `/hello`) |
-| `registerMessageHandler(descriptor)` | Register a pre-command message observer |
-| `registerRegexHandler(descriptor)` | Register a regex pattern matcher |
-| `registerLlmHook(descriptor)` | Register an LLM pipeline hook |
-| `registerLifecycleHandler(descriptor)` | Register lifecycle hook |
-| `registerTool(descriptor, handler)` | Register LLM function-calling tool |
-| `registerToolLifecycleHook(descriptor)` | Register tool lifecycle hook |
+| `registerMessageHandler(descriptor)` | Message handler before command matching |
+| `registerCommandHandler(descriptor)` | Slash command |
+| `registerRegexHandler(descriptor)` | Regex matcher |
+| `registerLlmHook(descriptor)` | LLM pipeline hook |
+| `registerLifecycleHandler(descriptor)` | Lifecycle hook |
+| `registerTool(descriptor, handler?)` | LLM tool |
+| `registerToolLifecycleHook(descriptor)` | Tool lifecycle hook |
+| `registerScheduledHandler(descriptor)` | Scheduled callback |
+| `registerAgent(descriptor)` | Agent capability |
 
-### Lifecycle Shortcuts
+Lifecycle shortcuts:
 
-| Method | Equivalent |
-|--------|-----------|
-| `onPluginLoaded(d)` | `registerLifecycleHandler({ hook: "on_plugin_loaded", ...d })` |
-| `onPluginUnloaded(d)` | `registerLifecycleHandler({ hook: "on_plugin_unloaded", ...d })` |
-| `onPluginError(d)` | `registerLifecycleHandler({ hook: "on_plugin_error", ...d })` |
+- `onPluginLoaded(descriptor)`
+- `onPluginUnloaded(descriptor)`
+- `onPluginError(descriptor)`
 
-### Utility Methods
+### Utilities
 
-#### `log(level, message, metadata?)`
 ```javascript
-hostApi.log("INFO", "Hello");
-hostApi.log("ERROR", "Oops", { detail: "stack..." });
-// level: "VERBOSE" | "DEBUG" | "INFO" | "WARN" | "ERROR"
-```
-
-#### `getPluginMetadata()` → object
-```javascript
+hostApi.log("INFO", "message", { key: "value" });
 const meta = hostApi.getPluginMetadata();
-// { pluginId, installedVersion, runtimeKind, runtimeApiVersion, runtimeBootstrap }
-```
-
-#### `getSettings()` → object
-```javascript
 const settings = hostApi.getSettings() || {};
-const val = settings.my_key ?? "default";
 ```
-Returns saved config values from `_conf_schema.json`. Returns `{}` if nothing saved yet.
-**Always provide defaults with `??` or `||`.**
 
-Aliases: `readSettings()`, `getPluginSettings()`, `getConfig()` — all identical.
+Settings aliases:
 
----
+- `readSettings()`
+- `getPluginSettings()`
+- `getConfig()`
 
-## 7. HANDLER & HOOK REGISTRATION
+### Storage
 
-Every registration descriptor shares a common base:
+```javascript
+hostApi.storage.plugin.set("counter", 1);
+const counter = hostApi.storage.plugin.get("counter", 0);
+const keys = hostApi.storage.plugin.keys();
+hostApi.storage.plugin.remove("counter");
+hostApi.storage.plugin.clear("prefix:");
+```
+
+`hostApi.storage.session` has the same methods, but requires a current conversation context.
+
+## 7. Controlled Host APIs
+
+Most controlled Host APIs return a plain value on success and this shape on failure:
 
 ```javascript
 {
-  key: "pluginId.unique-key",  // REQUIRED: globally unique registration key
-  priority: 0,                 // OPTIONAL: lower = runs first. Default 0. Range: 0-200
-  filters: [],                 // OPTIONAL: leave empty
-  metadata: {},                // OPTIONAL: arbitrary key-value metadata
-  handler(event) { ... },      // REQUIRED: the callback function
+  ok: false,
+  error: {
+    code: "permission_denied",
+    message: "Permission denied for host API.",
+    details: {}
+  }
 }
 ```
 
-### 7.1 Command Handler
+Always check `result && result.ok === false`.
+
+### Network
+
+```javascript
+const response = await hostApi.fetch({
+  url: "https://api.example.com/ping",
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  bodyText: JSON.stringify({ q: "hello" }),
+  timeoutMs: 10000
+});
+```
+
+Equivalent:
+
+```javascript
+await hostApi.network.request({ url: "https://api.example.com/ping" });
+```
+
+Limits:
+
+- `http` / `https` only.
+- Domain must match `android-plugin.json.network.allowedDomains`.
+- Localhost, private IPs, `.local`, `.internal`, and `.lan` are blocked.
+- Response body limit is 1 MB.
+- Timeout is capped at 15000 ms.
+
+### Providers
+
+```javascript
+const providers = await hostApi.providers.list();
+const models = await hostApi.providers.models({ providerId: providers[0].providerId });
+```
+
+### Message Send
+
+```javascript
+const receipt = await hostApi.message.send({
+  text: "Hello from plugin",
+  markdown: false
+});
+```
+
+The target is always the current conversation. If `conversationId` is provided, it must match the current event conversation.
+
+Rich message chain:
+
+```javascript
+await hostApi.message.send({
+  chain: [
+    { type: "text", text: "Image:" },
+    { type: "image", uri: "plugin://package/assets/welcome.png", mimeType: "image/png" },
+    { type: "mention", userId: "123456", label: "user" },
+    { type: "reply", messageId: "message-1" },
+    { type: "card", title: "Title", text: "Summary", url: "https://example.com" }
+  ]
+});
+```
+
+Media URIs for `message.send` must be one of:
+
+- `plugin://package/...`
+- `plugin://workspace/...`
+- `content://com.elymbot.android.fileprovider/...`
+- `https://...`
+
+### Message Stream
+
+```javascript
+const stream = await hostApi.message.openStream({ markdown: true });
+
+if (stream.ok === false) {
+  return event.replyText(`stream failed: ${stream.error.code}`);
+}
+
+await stream.append("first chunk");
+await stream.replace("replacement text");
+await stream.close();
+```
+
+Limits: 120 seconds, 128 chunks, 64 KB text.
+
+### Conversation History
+
+```javascript
+const history = await hostApi.conversation.history({
+  limit: 20,
+  includeAttachments: false
+});
+```
+
+The target is the current conversation only. `limit` is capped at 100.
+
+For QQ group conversations, history reads the host-maintained public group
+message history, not the bot LLM conversation context. Group-user session
+isolation only affects bot context; group analysis and statistics plugins read
+the public `group:<groupId>` history. The result only covers messages already
+received and deposited by the host QQ runtime. Current history records may not
+carry a separate real sender id; group sender information is primarily encoded
+in the returned `text` prefix.
+
+### Direct LLM
+
+```javascript
+const result = await hostApi.callLlm({
+  providerId: "provider-main",
+  modelId: "model-main",
+  systemPrompt: "Be concise.",
+  messages: [
+    { role: "user", text: "Summarize this" }
+  ],
+  temperature: 0.2,
+  topP: 0.9,
+  maxTokens: 256
+});
+```
+
+Equivalent model endpoint:
+
+```javascript
+await hostApi.llm.generate({ providerId, modelId, messages });
+```
+
+Direct LLM calls bypass plugin LLM hooks by default. Do not expect these calls to trigger `registerLlmHook`.
+
+Allowed message roles for direct LLM calls: `system`, `user`, `assistant`.
+
+### Context Compression
+
+```javascript
+const compressed = await hostApi.context.compress({
+  providerId: "provider-main",
+  modelId: "model-main",
+  maxTokens: 512,
+  limit: 50,
+  targetLanguage: "zh-CN",
+  outputLength: "short"
+});
+```
+
+This reads current conversation history and uses host LLM compression. It also bypasses plugin LLM hooks.
+
+## 8. Handler and Hook Patterns
+
+### Command
 
 ```javascript
 hostApi.registerCommandHandler({
-  key: "my-plugin.greet",
-  command: "hello",            // user types /hello
-  aliases: ["hi", "greet"],    // also triggers on /hi, /greet
-  groupPath: [],               // leave empty for top-level commands
-  priority: 0,
-  filters: [],
-  metadata: { description: "Say hello" },
+  key: "my-plugin.echo",
+  command: "echo",
   handler(event) {
-    const name = event.remainingText || "World";
-    event.replyResult({
-      text: `Hello, ${name}!`,
-      attachments: [],         // optional
-    });
+    event.replyText(event.remainingText || "");
   },
 });
 ```
 
-### 7.2 Message Handler
+Command event helpers:
 
-Fires **before** command matching. Good for logging or preprocessing.
+- `event.replyText(text)`
+- `event.replyResult(payload)`
+- `event.stopPropagation()`
+
+### Message
 
 ```javascript
 hostApi.registerMessageHandler({
-  key: "my-plugin.logger",
-  priority: 0,
-  filters: [],
-  metadata: {},
+  key: "my-plugin.observe",
   handler(event) {
-    hostApi.log("INFO", `Message: ${event.rawText}`);
-    // event.stopPropagation() — blocks subsequent handlers + command matching
+    hostApi.log("INFO", `message: ${event.rawText}`);
   },
 });
 ```
 
-### 7.3 Regex Handler
+### Regex
 
 ```javascript
 hostApi.registerRegexHandler({
-  key: "my-plugin.pattern",
-  pattern: "^echo[：:]\\s*(.+)",   // regex STRING, not RegExp object
-  flags: "i",                      // regex flags as string
-  priority: 0,
-  filters: [],
-  metadata: {},
+  key: "my-plugin.regex",
+  pattern: "^echo\\s+(.+)",
+  flags: ["i"],
   handler(event) {
-    const captured = event.groups[0]; // first capture group
-    hostApi.log("INFO", `Matched: ${captured}`);
+    hostApi.log("INFO", `regex matched: ${event.groups[0] || ""}`);
     event.stopPropagation();
   },
 });
 ```
 
-### 7.4 Lifecycle Handlers
+### Filters
+
+Use `filters` for composition:
 
 ```javascript
-hostApi.onPluginLoaded({
-  key: "my-plugin.loaded",
-  handler() { hostApi.log("INFO", "Plugin loaded"); },
-});
-
-hostApi.onPluginUnloaded({
-  key: "my-plugin.unloaded",
-  handler() { hostApi.log("INFO", "Plugin unloaded"); },
-});
-
-hostApi.onPluginError({
-  key: "my-plugin.error",
-  handler(payload) { hostApi.log("ERROR", "Error", payload || {}); },
-});
-```
-
----
-
-## 8. EVENT OBJECT SHAPES
-
-### 8.1 Command Event (handler of registerCommandHandler)
-
-```typescript
-interface CommandEvent {
-  // Common fields (shared with all event types)
-  eventId: string;                  // unique event ID
-  platformAdapterType: string;      // e.g., "qq", "app_chat"
-  messageType: string;              // message type identifier
-  conversationId: string;           // conversation/group ID
-  senderId: string;                 // sender user ID
-  timestampEpochMillis: number;     // epoch milliseconds
-  rawText: string;                  // original message text
-  workingText: string;              // preprocessed text
-  normalizedMentions: string[];     // @mention list
-  extras: object;                   // platform-specific extras
-  stage: "Command";                 // always "Command"
-  
-  // Command-specific fields
-  commandPath: string[];            // matched command path
-  args: string[];                   // parsed arguments array
-  matchedAlias: string;             // which command/alias was matched
-  remainingText: string;            // text after command name
-  invocationText: string;           // full trigger text
-
-  // Methods
-  replyResult(payload): void;       // reply with text + optional attachments
-  replyText(text): void;            // reply with plain text
-  stopPropagation(): void;          // block subsequent handlers
-  
-  // Aliases (all equivalent):
-  // sendResult / reply / respond → replyResult
-  // sendText / respondText → replyText
+filters: {
+  allOf: [
+    { eventMessageType: "group" },
+    {
+      anyOf: [
+        { platformAdapterType: "onebot" },
+        { platformAdapterType: "qq" }
+      ]
+    },
+    { not: { permissionType: "blocked" } }
+  ]
 }
 ```
 
-**replyResult payload formats:**
+Compatible legacy filters:
+
 ```javascript
-// Format 1: plain string
-event.replyResult("Hello!");
-
-// Format 2: object with attachments
-event.replyResult({
-  text: "Here's an image:",
-  attachments: [
-    { source: "assets/photo.jpg", mimeType: "image/jpeg" },
-  ],
-});
+declaredFilters: [
+  "event_message_type:group",
+  "platform_adapter_type:onebot",
+  "permission_type:send_message",
+  "custom_filter:my_filter"
+]
 ```
 
-### 8.2 Message Event (handler of registerMessageHandler)
+Never put both `declaredFilters` and `filters` on the same registration.
 
-Same common fields as CommandEvent, but `stage` = `"AdapterMessage"`.
-No command-specific fields (no `args`, `commandPath`, etc.).
-Has `stopPropagation()` but no `replyResult`/`replyText`.
-
-### 8.3 Regex Event (handler of registerRegexHandler)
-
-Common fields + regex-specific:
-```typescript
-{
-  stage: "Regex";
-  patternKey: string;       // the key of matched handler
-  matchedText: string;      // full regex match
-  groups: string[];         // capture groups: groups[0] = first ()
-  namedGroups: object;      // named captures (?<name>...)
-  
-  stopPropagation(): void;  // available
-  // NO replyResult/replyText
-}
-```
-
----
-
-## 9. LLM PIPELINE HOOKS
-
-The LLM pipeline processes AI chat messages through 5 sequential stages.
-Register hooks with `hostApi.registerLlmHook({ hook, key, priority, handler })`.
-
-### Pipeline Flow
-
-```
-User message
-  │
-  ▼
-[on_waiting_llm_request]  ← observe: request is queued
-  │
-  ▼
-[on_llm_request]          ← MUTABLE: modify the LLM request
-  │
-  ▼
-  LLM Provider (OpenAI, etc.)
-  │
-  ▼
-[on_llm_response]         ← observe: raw LLM response
-  │
-  ▼
-[on_decorating_result]    ← MUTABLE: modify text/attachments before send
-  │
-  ▼
-  Message sent to user
-  │
-  ▼
-[after_message_sent]      ← post-send: can send followup messages
-```
-
-### 9.1 on_waiting_llm_request
+### LLM Hooks
 
 ```javascript
 hostApi.registerLlmHook({
-  hook: "on_waiting_llm_request",
-  key: "my-plugin.waiting",
+  hook: "on_decorating_result",
+  key: "my-plugin.decorate",
   priority: 100,
-  metadata: {},
-  handler(payload) {
-    // payload is a flat object containing event fields
-    // Read-only observation point
+  handler({ result }) {
+    result.appendText("\n-- plugin footer");
   },
 });
 ```
 
-### 9.2 on_llm_request — MUTABLE
+Supported hooks:
+
+- `on_waiting_llm_request`
+- `on_llm_request`
+- `on_llm_response`
+- `on_decorating_result`
+- `after_message_sent`
+
+Use `registerLlmHook`. Do not use `onDecoratingResult` or `afterMessageSent` shortcut APIs; they are not part of the v2 public surface.
+
+### Scheduled Handler
 
 ```javascript
-handler(payload) {
-  const { event, request } = payload;
-  
-  // request readable properties:
-  //   requestId, conversationId, messageIds, llmInputSnapshot,
-  //   availableProviderIds, availableModelIdsByProvider,
-  //   selectedProviderId, selectedModelId,
-  //   systemPrompt, messages, temperature, topP, maxTokens,
-  //   streamingEnabled, metadata
-
-  // Mutation methods:
-  request.appendSystemPrompt("Additional instructions...");
-  request.replaceSystemPrompt("Replace entire system prompt");
-  
-  // Direct property assignment also works:
-  // request.temperature = 0.7;
-  // request.selectedProviderId = "other-provider";
-}
-```
-
-### 9.3 on_llm_response — Read-Only
-
-```javascript
-handler(payload) {
-  const { event, response } = payload;
-  
-  // response properties:
-  //   requestId, providerId, modelId, text, markdown,
-  //   finishReason, metadata,
-  //   usage: { promptTokens, completionTokens, totalTokens,
-  //            inputCostMicros, outputCostMicros, currencyCode },
-  //   toolCalls: [{ toolName, arguments, metadata }]
-}
-```
-
-### 9.4 on_decorating_result — MUTABLE ⭐ Most Common
-
-Modify the final reply before it's sent to the user.
-
-```javascript
-handler(payload) {
-  const { event, result } = payload;
-  
-  // result readable properties:
-  //   requestId, conversationId, text, markdown,
-  //   attachments: [{ uri, mimeType }],
-  //   attachmentMutationIntent, shouldSend, isStopped
-
-  // Text mutation:
-  result.appendText("\n— appended by plugin");
-  result.replaceText("completely replaced");
-  result.clearText();
-
-  // Attachment mutation:
-  result.appendAttachment({ uri: "assets/img.png", mimeType: "image/png" });
-  result.replaceAttachments([{ uri: "assets/a.jpg", mimeType: "image/jpeg" }]);
-  result.clearAttachments();
-
-  // Flow control:
-  result.setShouldSend(false);    // prevent sending
-  result.stop();                  // prevent subsequent hooks
-}
-```
-
-### 9.5 after_message_sent — Post-Send + Followup ⭐
-
-```javascript
-handler(payload) {
-  const { event, view } = payload;
-  
-  // view read-only properties:
-  //   requestId, conversationId, sendAttemptId,
-  //   platformAdapterType, platformInstanceKey,
-  //   sentAtEpochMs, deliveryStatus, receiptIds,
-  //   deliveredEntries: [{ entryId, entryType, textPreview, attachmentCount }],
-  //   deliveredEntryCount,
-  //   usage: { promptTokens, completionTokens, totalTokens, ... }
-
-  // Followup send capability:
-  //   view.canSendFollowup  — boolean, true on QQ platform, false on app_chat
-  //   view.sendFollowup(text, attachments) — send an additional message
-
-  if (view.canSendFollowup && typeof view.sendFollowup === "function") {
-    const result = view.sendFollowup("Followup text", [
-      { uri: "assets/extra.png", mimeType: "image/png" },
-    ]);
-    // result: { success: boolean, receiptIds: string[], errorSummary: string }
+hostApi.registerScheduledHandler({
+  key: "daily-summary",
+  cron: "0 9 * * *",
+  handler: async (event) => {
+    await hostApi.message.send({ text: "Daily summary" });
   }
-}
+});
 ```
 
-**`sendFollowup` key facts:**
-- Only available when `view.canSendFollowup === true` (external platforms like QQ)
-- Sends a completely new message to the same conversation
-- Attachment URIs follow the same resolution rules as command replies
-- Returns send result with success/error info
+or:
 
----
+```javascript
+hostApi.registerScheduledHandler({
+  key: "run-once",
+  runAt: Date.now() + 60000,
+  handler: async () => {}
+});
+```
 
-## 10. CONFIGURATION SYSTEM
+`cron` and `runAt` are mutually exclusive.
 
-Two independent files serve different purposes:
+If the scheduled callback sends messages, opens streams, or reads history, also declare the corresponding permissions such as `send_message`, `message_stream`, or `conversation_read`.
 
-| File | Purpose | Agent action |
-|------|---------|-------------|
-| `_conf_schema.json` | Define config fields + defaults | Create if plugin needs user settings |
-| `schemas/settings-schema.json` | Define settings UI layout | Create if you want a settings screen |
+### Tool
 
-### 10.1 _conf_schema.json
+```javascript
+hostApi.registerTool({
+  name: "lookup",
+  description: "Lookup data",
+  inputSchema: {
+    type: "object",
+    properties: { query: { type: "string" } },
+    required: ["query"]
+  },
+  handler: async (args) => {
+    return { status: "success", text: `hit:${args.payload.query}` };
+  }
+});
+```
 
-Each top-level key is a config field:
+Avoid reserved prefixes for plugin tool names:
+
+- `mcp.`
+- `skill.`
+- `web.`
+- `active.`
+- `ctx.`
+- `context.`
+
+### Agent
+
+```javascript
+hostApi.registerAgent({
+  key: "research-agent",
+  systemPrompt: "Use tools when useful.",
+  tools: ["lookup"],
+  model: {
+    providerId: "provider-main",
+    modelId: "model-main"
+  },
+  handler: async ({ input, agent }) => {
+    return await agent.run(input);
+  }
+});
+```
+
+Invoke it:
+
+```javascript
+const result = await hostApi.agent.run({
+  key: "research-agent",
+  input: "question",
+  maxToolCalls: 8,
+  maxDepth: 8,
+  timeoutMs: 30000,
+  maxTokens: 32768,
+  maxCostMicros: 5000000
+});
+```
+
+Agent LLM/tool loops are host-controlled and bypass plugin LLM hooks.
+
+## 9. Configuration
+
+`_conf_schema.json` defines data:
 
 ```json
 {
-  "field_key": {
+  "greeting_prefix": {
     "type": "string",
-    "description": "Human-readable description",
-    "hint": "Detailed tooltip text",
-    "default": "default value",
-    "section": "group-id"
+    "description": "Greeting prefix",
+    "hint": "Text before the name",
+    "default": "Hello",
+    "section": "general"
   }
 }
 ```
 
-**Supported `type` values:**
+Read it:
 
-| type | JS typeof | Default example | Notes |
-|------|-----------|----------------|-------|
-| `"string"` | string | `"hello"` | Single-line text |
-| `"text"` | string | `""` | Multi-line text |
-| `"bool"` | boolean | `true` | Toggle switch |
-| `"int"` | number | `42` | Integer |
-| `"float"` | number | `3.14` | Float |
-| `"number"` | number | `3` | Alias for `"float"`, **recommended** |
-
-**Reading in code:**
 ```javascript
 const settings = hostApi.getSettings() || {};
-const value = settings.field_key ?? defaultValue;
-// ALWAYS use ?? or || for defaults. First run = empty {}.
+const prefix = settings.greeting_prefix ?? "Hello";
 ```
 
-### 10.2 schemas/settings-schema.json
-
-Controls the host app's settings UI rendering:
+`schemas/settings-schema.json` defines UI:
 
 ```json
 {
-  "title": "Plugin Settings",
+  "title": "Settings",
   "sections": [
     {
       "sectionId": "general",
@@ -606,26 +578,9 @@ Controls the host app's settings UI rendering:
       "fields": [
         {
           "fieldType": "text_input",
-          "fieldId": "field_key",
-          "label": "Display Label",
-          "placeholder": "Hint text",
-          "defaultValue": "default"
-        },
-        {
-          "fieldType": "toggle",
-          "fieldId": "enable_feature",
-          "label": "Enable Feature",
-          "defaultValue": true
-        },
-        {
-          "fieldType": "select",
-          "fieldId": "mode",
-          "label": "Mode",
-          "defaultValue": "auto",
-          "options": [
-            { "value": "auto", "label": "Auto" },
-            { "value": "manual", "label": "Manual" }
-          ]
+          "fieldId": "greeting_prefix",
+          "label": "Greeting prefix",
+          "defaultValue": "Hello"
         }
       ]
     }
@@ -633,398 +588,92 @@ Controls the host app's settings UI rendering:
 }
 ```
 
-**Supported fieldType values:**
+Supported field types:
 
-| fieldType | Renders as | defaultValue type |
-|-----------|-----------|-------------------|
-| `text_input` | Text input box | string |
-| `toggle` | On/off switch | boolean |
-| `select` | Dropdown menu | string (matching option.value) |
+- `toggle`
+- `text_input`
+- `select`
 
-**Rules:**
-- `fieldId` in settings-schema.json should match keys in `_conf_schema.json`
-- Both files are optional and independent
-- Recommend providing both for a complete experience
+## 10. Attachments and Assets
 
----
-
-## 11. ATTACHMENTS & ASSETS
-
-### Asset directory
-Place static files under `assets/` in the plugin root:
-```
-my-plugin/
-└── assets/
-    ├── welcome.png
-    └── sounds/
-        └── ding.mp3
-```
-
-### URI resolution rules
-
-| URI format | Behavior | Example |
-|-----------|----------|---------|
-| Relative path | Auto-resolved to `pluginRoot/path` | `"assets/img.png"` |
-| Absolute path | Used as-is | `"/sdcard/photo.jpg"` |
-| `http://` / `https://` | Network resource | `"https://example.com/img.png"` |
-| `file://` | Used as-is | `"file:///sdcard/photo.jpg"` |
-| `content://` | Android content provider | `"content://media/..."` |
-| `base64:` | Inline base64 data | `"base64:iVBOR..."` |
-| `plugin://` | Plugin protocol | `"plugin://..."` |
-
-**Best practice**: Always use relative paths. The host resolves them correctly regardless of install location.
-
-### Attachment object fields
+For command replies, relative paths are allowed:
 
 ```javascript
-{
-  source: "assets/photo.jpg",   // REQUIRED (highest priority)
-  // Aliases (fallback order): uri > assetPath > path
-  mimeType: "image/jpeg",       // OPTIONAL but recommended
-  label: "Photo caption",       // OPTIONAL display text
-  // Aliases: altText, fileName
-}
-```
-
-### Where attachments are used
-
-1. **Command handler** — `event.replyResult({ text, attachments })`
-2. **on_decorating_result hook** — `result.appendAttachment({ uri, mimeType })`
-   - Note: in hooks, field name is `uri` not `source`
-3. **after_message_sent hook** — `view.sendFollowup(text, [{ uri, mimeType }])`
-   - Uses `uri` field name
-
-### Common MIME types
-
-| Type | mimeType |
-|------|----------|
-| JPEG | `image/jpeg` |
-| PNG | `image/png` |
-| GIF | `image/gif` |
-| WebP | `image/webp` |
-| MP3 | `audio/mpeg` |
-| MP4 | `video/mp4` |
-
----
-
-## 12. COMPLETE EXAMPLES
-
-### Example A: Minimal command-only plugin
-
-A plugin that responds to `/ping` with "pong!".
-
-**File: manifest.json**
-```json
-{
-  "name": "ping-plugin",
-  "description": "Responds to /ping with pong!",
-  "version": "1.0.0",
-  "author": "you",
-  "entryPoint": "runtime/bootstrap.js",
-  "protocolVersion": 2,
-  "sourceType": "GIT",
-  "sourceUrl": "https://github.com/you/ping-plugin.git"
-}
-```
-
-**File: android-plugin.json**
-```json
-{
-  "runtime": "js_quickjs",
-  "minHostVersion": "1.0.0"
-}
-```
-
-**File: runtime/bootstrap.js**
-```javascript
-export function activate(hostApi) {
-  hostApi.registerCommand("ping", "Test ping command", (event) => {
-    event.replyResult({ text: "pong!" });
-  });
-}
-```
-
-That's it. Three files, fully functional plugin.
-
----
-
-### Example B: LLM decorator with config
-
-A plugin that prepends a custom prefix to all LLM responses with configurable behavior.
-
-**File: manifest.json**
-```json
-{
-  "name": "reply-decorator",
-  "description": "Adds custom prefix to LLM responses",
-  "version": "1.0.0",
-  "author": "you",
-  "entryPoint": "runtime/bootstrap.js",
-  "protocolVersion": 2
-}
-```
-
-**File: android-plugin.json**
-```json
-{
-  "runtime": "js_quickjs",
-  "minHostVersion": "1.0.0"
-}
-```
-
-**File: _conf_schema.json**
-```json
-{
-  "prefix": {
-    "type": "string",
-    "description": "Prefix added before LLM responses",
-    "default": "[Bot] "
-  },
-  "enabled": {
-    "type": "bool",
-    "description": "Enable prefix",
-    "default": true
-  }
-}
-```
-
-**File: schemas/settings-schema.json**
-```json
-{
-  "title": "Reply Decorator Settings",
-  "sections": [
-    {
-      "sectionId": "general",
-      "title": "General",
-      "fields": [
-        {
-          "fieldType": "toggle",
-          "fieldId": "enabled",
-          "label": "Enable prefix",
-          "defaultValue": true
-        },
-        {
-          "fieldType": "text_input",
-          "fieldId": "prefix",
-          "label": "Response prefix",
-          "placeholder": "[Bot] ",
-          "defaultValue": "[Bot] "
-        }
-      ]
-    }
+event.replyResult({
+  text: "Image:",
+  attachments: [
+    { source: "assets/welcome.png", mimeType: "image/png", label: "welcome" }
   ]
-}
+});
 ```
 
-**File: runtime/bootstrap.js**
+For `hostApi.message.send`, use safe `uri` values:
+
 ```javascript
-export function activate(hostApi) {
-  hostApi.onDecoratingResult((result) => {
-    const settings = hostApi.getSettings() || {};
-    const enabled = settings.enabled ?? true;
-    const prefix = settings.prefix ?? "[Bot] ";
-    if (!enabled) return;
-
-    const original = result.getText();
-    result.setText(prefix + original);
-  });
-}
+await hostApi.message.send({
+  text: "Image:",
+  attachments: [
+    { uri: "plugin://package/assets/welcome.png", mimeType: "image/png" }
+  ]
+});
 ```
 
----
+## 11. Unsupported Capabilities
 
-### Example C: Followup sender with asset image
+Do not implement or document these as available:
 
-A plugin that sends a welcome image after each LLM response.
+- Web API registration.
+- Platform adapter registration.
+- Direct database access.
+- Text-to-image Host API.
+- HTML rendering Host API.
+- Arbitrary filesystem access.
+- Node.js/npm runtime.
+- Old framework-style public aliases.
 
-**File: manifest.json**
-```json
-{
-  "name": "welcome-followup",
-  "description": "Sends a welcome image after each reply",
-  "version": "1.0.0",
-  "author": "you",
-  "entryPoint": "runtime/bootstrap.js",
-  "protocolVersion": 2
-}
+If a requested plugin feature needs one of these, state the limitation and propose a fallback using current ElymBot APIs.
+
+## 12. Delivery Checklist
+
+Before delivery, verify:
+
+```text
+[ ] manifest.json exists at plugin root.
+[ ] android-plugin.json exists at plugin root.
+[ ] protocolVersion is 2 in both files.
+[ ] runtime.kind is "js_quickjs".
+[ ] runtime.bootstrap points under runtime/.
+[ ] runtime/bootstrap.js exports default async function bootstrap(hostApi).
+[ ] No Node.js APIs, CommonJS, npm imports, or host source imports are used.
+[ ] All controlled Host APIs have matching manifest permissions.
+[ ] Network calls declare network_request and android-plugin.json network.allowedDomains.
+[ ] Direct LLM / context compression / Agent assumptions mention hook bypass if relevant.
+[ ] Message sends target only the current conversation.
+[ ] Rich message media URIs use allowed schemes.
+[ ] ZIP root contains manifest.json directly, not an extra parent folder.
 ```
 
-**File: android-plugin.json**
-```json
-{
-  "runtime": "js_quickjs",
-  "minHostVersion": "1.0.0"
-}
-```
+## 13. Minimal Complete Example
 
-**File: runtime/bootstrap.js**
 ```javascript
-export function activate(hostApi) {
-  hostApi.afterMessageSent((view) => {
-    if (!view.canSendFollowup) return;
-    view.sendFollowup("Thanks for chatting!", [
-      { uri: "assets/welcome.png", mimeType: "image/png" }
-    ]);
+export default async function bootstrap(hostApi) {
+  hostApi.log("INFO", "example loaded");
+
+  hostApi.registerCommandHandler({
+    key: "example.ping",
+    command: "ping",
+    handler(event) {
+      event.replyText("pong");
+    },
+  });
+
+  hostApi.registerLlmHook({
+    hook: "on_decorating_result",
+    key: "example.footer",
+    priority: 100,
+    handler({ result }) {
+      result.appendText("\n-- from example plugin");
+    },
   });
 }
 ```
-
-**File: assets/welcome.png**
-(Place image file here)
-
----
-
-### Example D: Mixed command + LLM hook + config
-
-A "word counter" plugin that provides `/wordcount` command and appends word count to every LLM response.
-
-**File: manifest.json**
-```json
-{
-  "name": "word-counter",
-  "description": "Counts words in LLM responses",
-  "version": "1.0.0",
-  "author": "you",
-  "entryPoint": "runtime/bootstrap.js",
-  "protocolVersion": 2
-}
-```
-
-**File: android-plugin.json**
-```json
-{ "runtime": "js_quickjs", "minHostVersion": "1.0.0" }
-```
-
-**File: _conf_schema.json**
-```json
-{
-  "show_count": {
-    "type": "bool",
-    "description": "Append word count to responses",
-    "default": true
-  },
-  "count_format": {
-    "type": "string",
-    "description": "Format string ({count} = word count)",
-    "default": "\n\n---\nWord count: {count}"
-  }
-}
-```
-
-**File: runtime/bootstrap.js**
-```javascript
-function countWords(text) {
-  if (!text) return 0;
-  return text.trim().split(/\s+/).filter(w => w.length > 0).length;
-}
-
-export function activate(hostApi) {
-  // Command: count words in user's message
-  hostApi.registerCommand("wordcount", "Count words in your message", (event) => {
-    const text = event.args || "";
-    const count = countWords(text);
-    event.replyResult({ text: `Word count: ${count}` });
-  });
-
-  // Hook: append word count to every LLM response
-  hostApi.onDecoratingResult((result) => {
-    const settings = hostApi.getSettings() || {};
-    if (!(settings.show_count ?? true)) return;
-
-    const format = settings.count_format ?? "\n\n---\nWord count: {count}";
-    const text = result.getText();
-    const count = countWords(text);
-    result.setText(text + format.replace("{count}", String(count)));
-  });
-}
-```
-
----
-
-## 13. COMMON PITFALLS
-
-| # | Pitfall | Why it breaks | Fix |
-|---|---------|--------------|-----|
-| 1 | Using `require()` or `module.exports` | QuickJS sandbox uses ES modules only | Use `import`/`export` syntax |
-| 2 | Using Node.js APIs (`fs`, `path`, `Buffer`, `process`) | Sandbox is NOT Node.js | Use only hostApi and standard JS |
-| 3 | Not providing `??` defaults when reading settings | First run returns `{}` | Always: `settings.key ?? defaultValue` |
-| 4 | Duplicate keys between `_conf_schema.json` and `settings-schema.json` fieldIds | Host may freeze or crash | Ensure keys are consistent but not duplicated across files |
-| 5 | Putting `bootstrap.js` in root instead of `runtime/` | Host won't find entry point | entryPoint in manifest must match actual path |
-| 6 | Registering handlers outside `activate()` | hostApi not available yet | All registrations go inside `activate()` |
-| 7 | Returning async/Promise from handlers | QuickJS may not await them properly | Keep handlers synchronous |
-| 8 | Forgetting `protocolVersion: 2` in manifest | Falls back to legacy protocol | Always include `"protocolVersion": 2` |
-| 9 | Using absolute paths for assets | Breaks on different devices | Use relative paths from plugin root |
-| 10 | Modifying read-only event fields | Silently ignored, no effect | Only modify fields documented as mutable |
-| 11 | Missing `android-plugin.json` | Plugin won't load on Android host | Always include with `"runtime": "js_quickjs"` |
-| 12 | JSON with trailing commas or comments | Parse error, plugin fails to load | Use strict JSON (no comments, no trailing commas) |
-| 13 | Using `view.sendFollowup` without checking `canSendFollowup` | Runtime error | Always guard: `if (view.canSendFollowup)` |
-
----
-
-## 14. PRE-DELIVERY CHECKLIST
-
-Before delivering a plugin to the user, verify every item:
-
-```
-[ ] manifest.json exists and is valid JSON
-[ ] manifest.json has: name, description, version, author, entryPoint, protocolVersion (2)
-[ ] android-plugin.json exists with runtime: "js_quickjs"
-[ ] runtime/bootstrap.js exists at the path specified by entryPoint
-[ ] bootstrap.js exports function activate(hostApi)
-[ ] All handler registrations are INSIDE activate()
-[ ] No Node.js APIs used (no require, fs, path, Buffer, process, etc.)
-[ ] Only ES module syntax (import/export), no CommonJS
-[ ] All handlers are synchronous (no async/await)
-[ ] If _conf_schema.json exists: valid JSON, all fields have type + default
-[ ] If settings-schema.json exists: valid JSON, all fieldIds match _conf_schema keys
-[ ] Settings reads use ?? or || for defaults
-[ ] Asset paths are relative (from plugin root)
-[ ] Attachment objects use correct field name (source for commands, uri for hooks)
-[ ] sendFollowup calls are guarded by canSendFollowup check
-[ ] No trailing commas or comments in any JSON file
-[ ] All files use UTF-8 encoding
-```
-
----
-
-## 15. API QUICK REFERENCE CARD
-
-```
-hostApi.registerCommand(name, description, handler)
-  handler(event) → event.replyResult({ text, attachments })
-                 → event.args (string after command)
-
-hostApi.registerMessageHandler(handler)
-  handler(event) → event.replyResult({ text, attachments })
-                 → event.text (full message text)
-
-hostApi.registerRegexHandler(pattern, handler)
-  handler(event) → event.replyResult({ text, attachments })
-                 → event.match (regex match array)
-
-hostApi.onWaitingLlmRequest(handler)
-  handler(context) → context.senderName, context.messageText (read-only)
-
-hostApi.onLlmRequest(handler)
-  handler(request) → request.getPrompt() / request.setPrompt(str)
-                   → request.getSystemPrompt() / request.setSystemPrompt(str)
-
-hostApi.onLlmResponse(handler)
-  handler(response) → response.getText() (read-only)
-
-hostApi.onDecoratingResult(handler)
-  handler(result) → result.getText() / result.setText(str)
-                  → result.appendAttachment({ uri, mimeType })
-
-hostApi.afterMessageSent(handler)
-  handler(view) → view.canSendFollowup (boolean)
-               → view.sendFollowup(text, attachments?)
-               → view.finalText (string, read-only)
-
-hostApi.getSettings() → object | {}
-hostApi.log(message)  → void (debug log)
-```
-
----
-
-*End of document. This guide is self-contained. An agent should be able to create a fully functional plugin using only the information above.*
